@@ -1,0 +1,10 @@
+seedrcc
+deta
+python-dotenv
+feedparser
+pytz
+requests
+pymongo
+nanoid
+apscheduler
+humanize
