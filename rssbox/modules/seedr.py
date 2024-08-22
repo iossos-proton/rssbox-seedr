@@ -80,6 +80,8 @@ class Seedr(Seedrcc):
 
         if response.success:
             self.mark_as_downloading(download, response)
+        else:
+            self.mark_as_idle()
         return response
     
     def save(self):
@@ -95,6 +97,12 @@ class Seedr(Seedrcc):
                 }
             }
         )
+    
+    def update_status(self, status: SeedrStatus):
+        self.status = status
+        if status in [SeedrStatus.DOWNLOADING, SeedrStatus.IDLE]:
+            self.locked_by = None
+        self.save()
 
     def mark_as_downloading(self, download: Download, response: "SeedrAddDownloadResponse"):
         self.download_id = download.id
@@ -160,7 +168,7 @@ class SeedrAddDownloadResponse:
 
     def __init__(self, dict: dict):
         self.code = dict["code"]
-        self.error = dict.get("error")
+        self.error = dict.get("error") or dict.get("result")
         self.name = dict.get("name")
         self.success = self.code == 200 and dict["result"] == True
 

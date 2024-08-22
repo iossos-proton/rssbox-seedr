@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 import os
+from typing import List
+from pymongo import ReturnDocument
 import pytz
 import requests
 from pymongo.collection import Collection
@@ -66,9 +68,19 @@ class SeedrClient(Heartbeat):
         else:
             logger.info("No stale workers to remove.")
 
-        # Find accounts that are in PROCESSING or UPLOADING status and are orphaned or idle
+        # Find accounts that are in PROCESSING, UPLOADING, or DOWNLOAD_CHECKING status and are orphaned or idle
         pipeline = [
-            {"$match": {"status": {"$in": [SeedrStatus.PROCESSING.value, SeedrStatus.UPLOADING.value]}}},
+            {
+                "$match": {
+                    "status": {
+                        "$in": [
+                            SeedrStatus.PROCESSING.value,
+                            SeedrStatus.UPLOADING.value,
+                            SeedrStatus.DOWNLOAD_CHECKING.value,
+                        ]
+                    }
+                }
+            },
             {
                 "$lookup": {
                     "from": "workers",
@@ -81,9 +93,15 @@ class SeedrClient(Heartbeat):
             {
                 "$match": {
                     "$or": [
-                        {"worker": {"$exists": False}},  # Worker doesn't exist (orphaned)
-                        {"worker.last_heartbeat": {"$lt": timeout_threshold}},  # Worker is stale
-                        {"locked_by": {"$in": stale_worker_ids}},  # Locked by a stale worker
+                        {
+                            "worker": {"$exists": False}
+                        },  # Worker doesn't exist (orphaned)
+                        {
+                            "worker.last_heartbeat": {"$lt": timeout_threshold}
+                        },  # Worker is stale
+                        {
+                            "locked_by": {"$in": stale_worker_ids}
+                        },  # Locked by a stale worker
                     ]
                 }
             },
@@ -96,8 +114,12 @@ class SeedrClient(Heartbeat):
             for account in orphaned_or_idle_accounts:
                 new_status = (
                     SeedrStatus.DOWNLOADING.value
-                    if account["status"] == SeedrStatus.UPLOADING.value
-                    else SeedrStatus.IDLE.value
+                    if account["status"] == SeedrStatus.DOWNLOAD_CHECKING.value
+                    else (
+                        SeedrStatus.DOWNLOADING.value
+                        if account["status"] == SeedrStatus.UPLOADING.value
+                        else SeedrStatus.IDLE.value
+                    )
                 )
 
                 # Update each account individually based on the condition
@@ -116,7 +138,6 @@ class SeedrClient(Heartbeat):
             )
         else:
             logger.info("No orphaned or idle Seedr accounts to update.")
-
 
     def get_seedr(self, account: dict) -> Seedr:
         return Seedr(client=self.accounts, account=account)
@@ -137,9 +158,47 @@ class SeedrClient(Heartbeat):
 
         return self.get_seedr(result)
 
+    def get_downloads_to_check(self) -> List[Seedr]:
+        raw_accounts = self.accounts.find(
+            {
+                "status": SeedrStatus.DOWNLOADING.value,
+                "$or": [
+                    {"locked_by": {"$exists": False}},  # Not locked by any instance
+                    {"locked_by": None},  # Explicitly not locked
+                    {"locked_by": ""},  # Explicitly not locked
+                ],
+            }
+        ).limit(5)
+
+        locked_accounts = []
+
+        for account in raw_accounts:
+            locked_account = self.accounts.find_one_and_update(
+                {
+                    "_id": account["_id"],
+                    "$or": [
+                        {"locked_by": {"$exists": False}},  # Not locked by any instance
+                        {"locked_by": None},  # Explicitly not locked
+                        {"locked_by": ""},  # Explicitly not locked
+                    ],
+                },  # Ensure it's still unlocked
+                {
+                    "$set": {
+                        "status": SeedrStatus.DOWNLOAD_CHECKING.value,
+                        "locked_by": self.id,
+                    }
+                },
+                return_document=ReturnDocument.AFTER,
+            )
+            if locked_account:
+                locked_accounts.append(locked_account)
+
+        return [self.get_seedr(account) for account in locked_accounts]
+
     def check_downloads(self):
-        for account in self.accounts.find({"status": SeedrStatus.DOWNLOADING.value}):
-            seedr = self.get_seedr(account)
+        seedrs = self.get_downloads_to_check()
+
+        for seedr in seedrs:
             download = seedr.download
             if not download:
                 logger.info(
@@ -159,7 +218,6 @@ class SeedrClient(Heartbeat):
                     logger.info(
                         f"Download timed out for {seedr.download_name} by {seedr.key}"
                     )
-                    continue
                 else:
                     is_downloading = False
                     for torrent in result.torrents:
@@ -167,6 +225,7 @@ class SeedrClient(Heartbeat):
                             logger.info(
                                 f"Download in progress for {download.name} by {seedr.id} ({torrent.progress}%)"
                             )
+                            seedr.update_status(SeedrStatus.DOWNLOADING)
                             is_downloading = True
                             break
 
@@ -175,16 +234,18 @@ class SeedrClient(Heartbeat):
                             f"Download not found for {download.name} by {seedr.id}"
                         )
                         seedr.reset()
-    
-    def find_seedr(self, download: Download, seedr_list: SeedrList) -> SeedrFile | SeedrFolder | None:
+
+    def find_seedr(
+        self, download: Download, seedr_list: SeedrList
+    ) -> SeedrFile | SeedrFolder | None:
         for folder in seedr_list.folders:
             if folder.name == download.name:
                 return folder
-        
+
         for file in seedr_list.files:
             if file.name == download.name:
                 return file
-        
+
         return None
 
     def begin_download(self):
@@ -201,7 +262,9 @@ class SeedrClient(Heartbeat):
             if response.success:
                 logger.info(f"Torrent {download.name} added to {seedr.id}")
             else:
-                logger.error(f"Failed to add torrent to {seedr.name}: {response.error}")
+                logger.error(
+                    f"Failed to add {download.name} to {seedr.id}: {response.error}"
+                )
 
     def upload(self, seedr: Seedr, seedr_object: SeedrFile | SeedrFolder):
         seedr.mark_as_uploading(self.id)
@@ -210,16 +273,16 @@ class SeedrClient(Heartbeat):
             self.process_file(seedr_object)
         elif isinstance(seedr_object, SeedrFolder):
             self.process_folder(seedr_object)
-        
+
         seedr.mark_as_completed()
-    
+
     def process_folder(self, folder: SeedrFolder):
         folder_list = folder.list()
         for file in folder_list.files:
             self.process_file(file)
         for f in folder_list.folders:
             self.process_folder(f)
-    
+
     def process_file(self, file: SeedrFile):
         if self.check_extension(file.name):
             self.download_file(file)
@@ -242,13 +305,17 @@ class SeedrClient(Heartbeat):
         response = requests.get(url, stream=True)
 
         if response.status_code == 200:
-            logger.info(f"Downloading {file.name} to {filepath} ({humanize.naturalsize(file.size)})")
+            logger.info(
+                f"Downloading {file.name} to {filepath} ({humanize.naturalsize(file.size)})"
+            )
             with open(filepath, "wb") as f:
                 for chunk in response.iter_content(chunk_size=1024):
                     if chunk:
                         f.write(chunk)
 
-            logger.info(f"Downloaded {file.name} to {filepath} ({humanize.naturalsize(file.size)})")
+            logger.info(
+                f"Downloaded {file.name} to {filepath} ({humanize.naturalsize(file.size)})"
+            )
             return filepath
 
         return None
@@ -258,7 +325,9 @@ class SeedrClient(Heartbeat):
 
         drive_name = md5hash(file.name)
         drive = deta.Drive(drive_name)
-        logger.info(f"Uploading {file.name} ({humanize.naturalsize(file.size)}) to {drive_name}")
+        logger.info(
+            f"Uploading {file.name} ({humanize.naturalsize(file.size)}) to {drive_name}"
+        )
         result = drive.put(name=file.name, path=filepath)
 
         files.insert(
@@ -270,7 +339,9 @@ class SeedrClient(Heartbeat):
                 "downloads_count": 0,
             }
         )
-        logger.info(f"Uploaded {file.name} ({humanize.naturalsize(file.size)}) to {drive_name}")
+        logger.info(
+            f"Uploaded {file.name} ({humanize.naturalsize(file.size)}) to {drive_name}"
+        )
 
         delete_file(os.path.dirname(filepath))
         return result
