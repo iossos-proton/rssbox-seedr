@@ -208,7 +208,7 @@ class SeedrFolder:
 class SeedrTorrent:
     id: str
     name: str
-    progress: int
+    progress: float
     size: int
     stopped: bool
 
@@ -216,7 +216,7 @@ class SeedrTorrent:
         self.torrent = torrent
         self.id = torrent["id"]
         self.name = torrent["name"]
-        self.progress = int(torrent["progress"])
+        self.progress = float(torrent["progress"])
         self.size = int(torrent["size"])
         self.stopped = bool(torrent["stopped"])
 

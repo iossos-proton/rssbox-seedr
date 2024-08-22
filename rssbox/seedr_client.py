@@ -228,7 +228,7 @@ class SeedrClient(Heartbeat):
                     for torrent in result.torrents:
                         if torrent.name == download.name:
                             logger.info(
-                                f"Download in progress for {download.name} by {seedr.id} ({torrent.progress}%)"
+                                f"Download in progress for {download.name} by {seedr.id} ({torrent.progress:.2f}%)"
                             )
                             seedr.update_status(SeedrStatus.DOWNLOADING)
                             is_downloading = True
