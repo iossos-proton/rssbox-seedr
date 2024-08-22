@@ -81,7 +81,7 @@ class SeedrClient(Heartbeat):
     def process_stale_seedrs(self, stale_worker_ids, timeout_threshold):
         logger.debug("Checking for stale or orphaned Seedr accounts")
 
-        # Find accounts that are in PROCESSING, UPLOADING, or DOWNLOAD_CHECKING status and are orphaned or idle
+        # Find accounts that are in PROCESSING, UPLOADING, or LOCKED status and are orphaned or idle
         pipeline = [
             {
                 "$match": {
@@ -89,7 +89,7 @@ class SeedrClient(Heartbeat):
                         "$in": [
                             SeedrStatus.PROCESSING.value,
                             SeedrStatus.UPLOADING.value,
-                            SeedrStatus.DOWNLOAD_CHECKING.value,
+                            SeedrStatus.LOCKED.value,
                         ]
                     }
                 }
@@ -121,7 +121,7 @@ class SeedrClient(Heartbeat):
             for account in orphaned_or_idle_accounts:
                 new_status = (
                     SeedrStatus.DOWNLOADING.value
-                    if account["status"] in [SeedrStatus.DOWNLOAD_CHECKING.value, SeedrStatus.UPLOADING.value]
+                    if account["status"] in [SeedrStatus.LOCKED.value, SeedrStatus.UPLOADING.value]
                     else SeedrStatus.IDLE.value
                 )
 
@@ -263,7 +263,7 @@ class SeedrClient(Heartbeat):
                 },  # Ensure it's still unlocked
                 {
                     "$set": {
-                        "status": SeedrStatus.DOWNLOAD_CHECKING.value,
+                        "status": SeedrStatus.LOCKED.value,
                         "locked_by": self.id,
                     }
                 },
