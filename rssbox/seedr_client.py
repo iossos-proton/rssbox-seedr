@@ -168,7 +168,7 @@ class SeedrClient(Heartbeat):
                     {"locked_by": ""},  # Explicitly not locked
                 ],
             }
-        ).limit(5)
+        ).limit(3)
 
         locked_accounts = []
 
@@ -296,7 +296,7 @@ class SeedrClient(Heartbeat):
 
     def download_file(self, file: SeedrFile) -> str:
         filepath = self.get_filepath(file)
-        if os.path.exists(filepath):
+        if os.path.exists(filepath) and os.path.getsize(filepath) == file.size:
             return filepath
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
