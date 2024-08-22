@@ -46,6 +46,7 @@ class SeedrClient(Heartbeat):
     def start(self):
         self.begin_download()
         self.check_downloads()
+        self.begin_download()
         super().stop_heartbeat()
 
     def clean_stale_seedrs_and_workers(self):
@@ -158,7 +159,7 @@ class SeedrClient(Heartbeat):
 
         return self.get_seedr(result)
 
-    def get_downloads_to_check(self) -> List[Seedr]:
+    def get_downloads_to_check(self, limit: int) -> List[Seedr]:
         raw_accounts = self.accounts.find(
             {
                 "status": SeedrStatus.DOWNLOADING.value,
@@ -168,7 +169,7 @@ class SeedrClient(Heartbeat):
                     {"locked_by": ""},  # Explicitly not locked
                 ],
             }
-        ).limit(3)
+        ).limit(limit)
 
         locked_accounts = []
 
@@ -196,7 +197,11 @@ class SeedrClient(Heartbeat):
         return [self.get_seedr(account) for account in locked_accounts]
 
     def check_downloads(self):
-        seedrs = self.get_downloads_to_check()
+        seedrs = self.get_downloads_to_check(3)
+        if not seedrs:
+            return
+        
+        logger.info(f"Checking {len(seedrs)} downloads")
 
         for seedr in seedrs:
             download = seedr.download
@@ -208,8 +213,8 @@ class SeedrClient(Heartbeat):
                 continue
 
             result = seedr.list()
-
             downloaded_file = self.find_seedr(download, result)
+            
             if downloaded_file:
                 logger.info(f"Downloaded {download.name} by {seedr.id}")
                 self.upload(seedr, downloaded_file)
