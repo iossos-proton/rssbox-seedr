@@ -27,6 +27,7 @@ class Seedr(Seedrcc):
         self.added_at = account.get("added_at", None)
         self.download_id = account.get("download_id", None)
         self.locked_by = account.get("locked_by", None)
+        self.priority = account.get("priority", 0)
         self.__download = None
 
         if not self.token:
@@ -93,7 +94,8 @@ class Seedr(Seedrcc):
                     "status": self.status.value,
                     "added_at": self.added_at,
                     "download_id": self.download_id,
-                    "locked_by": self.locked_by
+                    "locked_by": self.locked_by,
+                    "priority": self.priority
                 }
             }
         )

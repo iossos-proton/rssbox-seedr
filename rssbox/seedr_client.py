@@ -65,9 +65,19 @@ class SeedrClient(Heartbeat):
 
         if stale_worker_ids:
             result = self.workers.delete_many({"_id": {"$in": stale_worker_ids}})
-            logger.info(f"Removed {result.deleted_count} stale workers.")
+            logger.info(f"Removed {result.deleted_count} stale workers")
         else:
-            logger.info("No stale workers to remove.")
+            logger.info("No stale workers to remove")
+
+        # Process the accounts table
+        self.process_stale_seedrs(stale_worker_ids, timeout_threshold)
+
+        # Process the downloads table
+        self.process_stale_downloads(stale_worker_ids, timeout_threshold)
+
+
+    def process_stale_seedrs(self, stale_worker_ids, timeout_threshold):
+        logger.debug("Checking for stale or orphaned Seedr accounts")
 
         # Find accounts that are in PROCESSING, UPLOADING, or DOWNLOAD_CHECKING status and are orphaned or idle
         pipeline = [
@@ -94,15 +104,9 @@ class SeedrClient(Heartbeat):
             {
                 "$match": {
                     "$or": [
-                        {
-                            "worker": {"$exists": False}
-                        },  # Worker doesn't exist (orphaned)
-                        {
-                            "worker.last_heartbeat": {"$lt": timeout_threshold}
-                        },  # Worker is stale
-                        {
-                            "locked_by": {"$in": stale_worker_ids}
-                        },  # Locked by a stale worker
+                        {"worker": {"$exists": False}},  # Worker doesn't exist (orphaned)
+                        {"worker.last_heartbeat": {"$lt": timeout_threshold}},  # Worker is stale
+                        {"locked_by": {"$in": stale_worker_ids}},  # Locked by a stale worker
                     ]
                 }
             },
@@ -115,12 +119,8 @@ class SeedrClient(Heartbeat):
             for account in orphaned_or_idle_accounts:
                 new_status = (
                     SeedrStatus.DOWNLOADING.value
-                    if account["status"] == SeedrStatus.DOWNLOAD_CHECKING.value
-                    else (
-                        SeedrStatus.DOWNLOADING.value
-                        if account["status"] == SeedrStatus.UPLOADING.value
-                        else SeedrStatus.IDLE.value
-                    )
+                    if account["status"] in [SeedrStatus.DOWNLOAD_CHECKING.value, SeedrStatus.UPLOADING.value]
+                    else SeedrStatus.IDLE.value
                 )
 
                 # Update each account individually based on the condition
@@ -135,10 +135,61 @@ class SeedrClient(Heartbeat):
                 )
 
             logger.info(
-                f"Updated {len(orphaned_or_idle_accounts)} orphaned or idle Seedr accounts."
+                f"Updated {len(orphaned_or_idle_accounts)} orphaned or idle Seedr accounts"
             )
         else:
-            logger.info("No orphaned or idle Seedr accounts to update.")
+            logger.info("No orphaned or idle Seedr accounts to update")
+
+
+    def process_stale_downloads(self, stale_worker_ids, timeout_threshold):
+        logger.debug("Checking for stale or orphaned downloads")
+
+        # Find downloads that are locked by a non-existing or stale worker
+        pipeline = [
+            {
+                "$match": {
+                    "status": {"$in": [DownloadStatus.PENDING.value, DownloadStatus.PROCESSING.value]},
+                    "locked_by": {"$ne": None}
+                }
+            },
+            {
+                "$lookup": {
+                    "from": "workers",
+                    "localField": "locked_by",
+                    "foreignField": "_id",
+                    "as": "worker",
+                }
+            },
+            {"$unwind": {"path": "$worker", "preserveNullAndEmptyArrays": True}},
+            {
+                "$match": {
+                    "$or": [
+                        {"worker": {"$exists": False}},  # Worker doesn't exist (orphaned)
+                        {"worker.last_heartbeat": {"$lt": timeout_threshold}},  # Worker is stale
+                        {"locked_by": {"$in": stale_worker_ids}},  # Locked by a stale worker
+                    ]
+                }
+            },
+            {"$project": {"_id": 1}},
+        ]
+
+        orphaned_or_idle_download_ids = [download["_id"] for download in self.downloads.aggregate(pipeline)]
+
+        if orphaned_or_idle_download_ids:
+            self.downloads.update_many(
+                {"_id": {"$in": orphaned_or_idle_download_ids}},
+                {
+                    "$set": {
+                        "status": DownloadStatus.PENDING.value,  # Revert to pending for reprocessing
+                        "locked_by": None,
+                    }
+                },
+            )
+
+            logger.info(f"Updated {len(orphaned_or_idle_download_ids)} orphaned or idle downloads")
+        else:
+            logger.info("No orphaned or idle downloads to update")
+
 
     def get_seedr(self, account: dict) -> Seedr:
         return Seedr(client=self.accounts, account=account)
@@ -153,11 +204,35 @@ class SeedrClient(Heartbeat):
                 ]
             },
             {"$set": {"status": SeedrStatus.PROCESSING.value, "locked_by": self.id}},
+            sort=[("priority", -1)],
         )
         if not result:
             return None
 
         return self.get_seedr(result)
+    
+    def get_pending_download(self) -> Download | None:
+        raw_download = self.downloads.find_one_and_update(
+            {
+                "status": DownloadStatus.PENDING.value,
+                "$or": [
+                    {"locked_by": {"$exists": False}},  # Not locked by any instance
+                    {"locked_by": None},  # Explicitly not locked
+                    {"locked_by": ""},  # Explicitly not locked
+                ],
+            },
+            {
+                "$set": {
+                    "locked_by": self.id
+                }
+            },
+            return_document=ReturnDocument.AFTER
+        )
+
+        if not raw_download:
+            return None
+        
+        return Download(self.downloads, raw_download)
 
     def get_downloads_to_check(self, limit: int) -> List[Seedr]:
         raw_accounts = self.accounts.find(
@@ -168,7 +243,8 @@ class SeedrClient(Heartbeat):
                     {"locked_by": None},  # Explicitly not locked
                     {"locked_by": ""},  # Explicitly not locked
                 ],
-            }
+            },
+            sort=[("priority", -1)],
         ).limit(limit)
 
         locked_accounts = []
@@ -254,12 +330,14 @@ class SeedrClient(Heartbeat):
         return None
 
     def begin_download(self):
-        for raw_download in self.downloads.find(
-            {"status": DownloadStatus.PENDING.value}
-        ):
-            download = Download(self.downloads, raw_download)
+        while True:
+            download = self.get_pending_download()
+            if not download:
+                break
+
             seedr = self.get_free_seedr()
             if not seedr:
+                download.unlock()
                 logger.info("No seedrs available")
                 break
 
@@ -267,6 +345,7 @@ class SeedrClient(Heartbeat):
             if response.success:
                 logger.info(f"Torrent {download.name} added to {seedr.id}")
             else:
+                download.unlock()
                 logger.error(
                     f"Failed to add {download.name} to {seedr.id}: {response.error}"
                 )
