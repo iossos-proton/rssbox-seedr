@@ -207,7 +207,7 @@ class SeedrClient(Heartbeat):
             download = seedr.download
             if not download:
                 logger.info(
-                    f"Seedr downloaded but no download found for {seedr.download_id} ({seedr.key})"
+                    f"Seedr downloaded but no download found for {seedr.download_id} ({seedr.id})"
                 )
                 seedr.mark_as_idle()
                 continue
@@ -221,7 +221,7 @@ class SeedrClient(Heartbeat):
             else:
                 if seedr.download_timeout():
                     logger.info(
-                        f"Download timed out for {seedr.download_name} by {seedr.key}"
+                        f"Download timed out for {download.name} by {seedr.id}"
                     )
                 else:
                     is_downloading = False
