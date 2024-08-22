@@ -15,6 +15,8 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    env:
+      ENV: ${{ secrets.ENV }}
 
     steps:
     - uses: actions/checkout@v4
@@ -28,7 +30,7 @@ jobs:
 
     - name: Configure for testing
       run: |
-        echo {{ secrets.ENV }} > .env
+        echo "$ENV" > .env
         
     - name: Test with python
       run: |
