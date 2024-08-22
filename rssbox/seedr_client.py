@@ -39,10 +39,11 @@ class SeedrClient(Heartbeat):
         self.downloads = downloads
         self.workers = workers
         self.scheduler = scheduler
+
+        logger.info(f"Initializing SeedrClient with ID: {self.id}")
         super().__init__(self.id, self.workers, self.scheduler)
         self.clean_stale_seedrs_and_workers()
 
-        logger.info(f"SeedrClient initialized with ID: {self.id}")
 
     def start(self):
         self.begin_download()
