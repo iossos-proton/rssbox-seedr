@@ -34,7 +34,6 @@ class SeedrClient(Heartbeat):
         workers: Collection,
         scheduler: BackgroundScheduler,
     ):
-        logger.info("Initializing SeedrClient")
         self.id = nanoid.generate(alphabet="1234567890abcdef")
         self.accounts = accounts
         self.downloads = downloads
@@ -42,6 +41,8 @@ class SeedrClient(Heartbeat):
         self.scheduler = scheduler
         super().__init__(self.id, self.workers, self.scheduler)
         self.clean_stale_seedrs_and_workers()
+
+        logger.info(f"SeedrClient initialized with ID: {self.id}")
 
     def start(self):
         self.begin_download()
