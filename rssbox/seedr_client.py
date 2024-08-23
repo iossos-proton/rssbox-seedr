@@ -75,6 +75,7 @@ class SeedrClient:
             },
             {"$set": {"status": SeedrStatus.PROCESSING.value, "locked_by": self.id}},
             sort=[("priority", -1)],
+            return_document=ReturnDocument.AFTER,
         )
         if not result:
             return None
