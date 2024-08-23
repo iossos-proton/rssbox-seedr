@@ -194,7 +194,7 @@ class SeedrClient:
                             )
                             seedr.update_status(SeedrStatus.DOWNLOADING)
                             is_downloading = True
-                            sleep(1)
+                            sleep(5)
                             break
 
                     if not is_downloading:
