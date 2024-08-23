@@ -14,6 +14,7 @@ class Download:
     status: DownloadStatus
     download_name: str | None
     locked_by: str | None
+    retries: int
 
     def __init__(self, client: Collection, dict: dict):
         self.client = client
@@ -21,8 +22,10 @@ class Download:
         self.name = dict["name"]
         self.id = dict["_id"]
         self.status = DownloadStatus(dict["status"])
+        
         self.download_name = dict.get("download_name")
         self.locked_by = dict.get("locked_by")
+        self.retries = dict.get("retries", 0)
 
     @property
     def dict(self):
@@ -31,7 +34,8 @@ class Download:
             "name": self.name,
             "status": self.status.value,
             "download_name": self.download_name,
-            "locked_by": self.locked_by
+            "locked_by": self.locked_by,
+            "retries": self.retries
         }
 
     def create(self):
@@ -60,6 +64,15 @@ class Download:
         self.download_name = None
         self.locked_by = None
         self.save()
+
+    def mark_as_failed(self, soft=False):
+        if not soft:
+            self.retries += 1
+
+        if self.retries >= 5:
+            self.delete()
+        else:
+            self.mark_as_pending()
     
     def unlock(self):
         self.locked_by = None
@@ -75,6 +88,5 @@ class Download:
             "name": entry.title,
             "status": DownloadStatus.PENDING.value,
             "_id": ObjectId(),
-            "download_name": None
         }
         return Download(client=client, dict=dict)

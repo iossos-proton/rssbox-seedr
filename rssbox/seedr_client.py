@@ -16,6 +16,7 @@ import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 import humanize
 import nanoid
+from requests.exceptions import ConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -295,7 +296,11 @@ class SeedrClient(Heartbeat):
             
             if downloaded_file:
                 logger.info(f"Downloaded {download.name} by {seedr.id}")
-                self.upload(seedr, downloaded_file)
+                try:
+                    self.upload(seedr, downloaded_file)
+                except ConnectionError as error:
+                    seedr.mark_as_failed()
+                    logger.error(f"Failed to upload {download.name} to {seedr.id}: {error}")
             else:
                 if seedr.download_timeout():
                     logger.info(

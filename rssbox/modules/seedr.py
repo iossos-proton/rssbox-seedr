@@ -128,6 +128,12 @@ class Seedr(Seedrcc):
         self.locked_by = locked_by
         self.status = SeedrStatus.UPLOADING
         self.save()
+    
+    def mark_as_failed(self, soft=False):
+        with mongo_client.start_session() as session:
+            with session.start_transaction():
+                self.mark_as_idle()
+                self.download.mark_as_failed(soft=soft)
 
     def mark_as_completed(self):
         with mongo_client.start_session() as session:
