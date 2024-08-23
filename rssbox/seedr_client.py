@@ -284,7 +284,7 @@ class SeedrClient(Heartbeat):
 
         for seedr in seedrs:
             download = seedr.download
-            if not download or not download.download_name:
+            if not download:
                 logger.info(
                     f"Seedr downloaded but no download found for {seedr.download_id} ({seedr.id})"
                 )
