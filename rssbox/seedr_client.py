@@ -145,11 +145,17 @@ class SeedrClient:
 
         for seedr in seedrs:
             download = seedr.download
-            if not download or not download.download_name:
+            if not download:
                 logger.info(
                     f"Seedr downloaded but no download found for {seedr.download_id} ({seedr.id})"
                 )
                 seedr.mark_as_idle()
+                continue
+            if not download.download_name:
+                logger.info(
+                    f"Seedr downloaded but no download name found for {seedr.download_id} ({seedr.id})"
+                )
+                seedr.reset()
                 continue
 
             result = seedr.list()
