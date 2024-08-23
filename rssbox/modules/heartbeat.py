@@ -1,18 +1,18 @@
-from datetime import datetime
-from pymongo.collection import Collection
-from apscheduler.schedulers.background import BackgroundScheduler
 import logging
+from datetime import datetime
 
 import pytz
+from apscheduler.schedulers.background import BackgroundScheduler
+from pymongo.collection import Collection
 
 logger = logging.getLogger(__name__)
+
 
 class Heartbeat:
     def __init__(self, id: str, client: Collection, scheduler: BackgroundScheduler):
         self.id = id
         self.client = client
         self.scheduler = scheduler
-        self.start_heartbeat()
 
     def start_heartbeat(self):
         logger.debug(f"Starting heartbeat for {self.id}")
@@ -24,7 +24,7 @@ class Heartbeat:
             id=self.heartbeat_id,
             max_instances=1,
         )
-    
+
     def stop_heartbeat(self):
         logger.debug(f"Stopping heartbeat for {self.id}")
         self.scheduler.remove_job(self.heartbeat_id)
@@ -41,3 +41,11 @@ class Heartbeat:
     @property
     def heartbeat_id(self):
         return f"heartbeat-{self.id}"
+
+    def __enter__(self):
+        self.start_heartbeat()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop_heartbeat()
+        return False

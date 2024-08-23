@@ -1,15 +1,15 @@
-from dotenv import load_dotenv
-from deta import Deta
-import os
 import logging
-from pymongo import MongoClient
-from bson.codec_options import CodecOptions
+import os
+
 from apscheduler.schedulers.background import BackgroundScheduler
+from bson.codec_options import CodecOptions
+from deta import Deta
+from dotenv import load_dotenv
+from pymongo import MongoClient
 
 from rssbox.config import Config
 
 load_dotenv()
-
 
 
 if not os.path.exists(Config.DOWNLOAD_PATH):

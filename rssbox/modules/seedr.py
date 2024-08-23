@@ -1,14 +1,18 @@
+import logging
 from datetime import datetime, timedelta
-from seedrcc import Seedr as Seedrcc, Login
 from typing import List
+
 import pytz
 from pymongo.collection import Collection
-import logging
+from seedrcc import Login
+from seedrcc import Seedr as Seedrcc
+
 from rssbox import downloads, mongo_client
-from rssbox.modules.download import Download
 from rssbox.enum import SeedrStatus
+from rssbox.modules.download import Download
 
 logger = logging.getLogger(__name__)
+
 
 class Seedr(Seedrcc):
     client: Collection
@@ -43,12 +47,13 @@ class Seedr(Seedrcc):
         self.token = seedr.token
         self.save()
         return seedr.token
-    
+
     def callback_factory(self, id):
         def callbackFunc(token):
             logger.info(f"Updating token for account {id}")
             self.token = token
             self.save()
+
         return callbackFunc
 
     def get_download_link(self, file: dict | str):
@@ -84,7 +89,7 @@ class Seedr(Seedrcc):
         else:
             self.mark_as_idle()
         return response
-    
+
     def save(self):
         self.client.update_one(
             {"_id": self.id},
@@ -95,18 +100,20 @@ class Seedr(Seedrcc):
                     "added_at": self.added_at,
                     "download_id": self.download_id,
                     "locked_by": self.locked_by,
-                    "priority": self.priority
+                    "priority": self.priority,
                 }
-            }
+            },
         )
-    
+
     def update_status(self, status: SeedrStatus):
         self.status = status
         if status in [SeedrStatus.DOWNLOADING, SeedrStatus.IDLE]:
             self.locked_by = None
         self.save()
 
-    def mark_as_downloading(self, download: Download, response: "SeedrAddDownloadResponse"):
+    def mark_as_downloading(
+        self, download: Download, response: "SeedrAddDownloadResponse"
+    ):
         self.download_id = download.id
         self.added_at = datetime.now(tz=pytz.utc)
         self.status = SeedrStatus.DOWNLOADING
@@ -123,12 +130,12 @@ class Seedr(Seedrcc):
         self.download_id = None
         self.locked_by = None
         self.save()
-    
+
     def mark_as_uploading(self, locked_by: str):
         self.locked_by = locked_by
         self.status = SeedrStatus.UPLOADING
         self.save()
-    
+
     def mark_as_failed(self, soft=False):
         with mongo_client.start_session() as session:
             with session.start_transaction():
@@ -140,27 +147,29 @@ class Seedr(Seedrcc):
             with session.start_transaction():
                 self.mark_as_idle()
                 self.download.delete()
-    
+
     def reset(self):
         with mongo_client.start_session() as session:
             with session.start_transaction():
                 self.mark_as_idle()
                 self.download.mark_as_pending()
-    
+
     def download_timeout(self, timeout: int = 60 * 60) -> bool:
-        if self.added_at and self.added_at + timedelta(seconds=timeout) < datetime.now(tz=pytz.utc):
+        if self.added_at and self.added_at + timedelta(seconds=timeout) < datetime.now(
+            tz=pytz.utc
+        ):
             self.mark_as_idle()
             return True
 
         return False
-    
+
     def get_download(self) -> Download | None:
         if self.download_id:
             raw_download = downloads.find_one({"_id": self.download_id})
             if raw_download:
                 return Download(downloads, raw_download)
         return None
-    
+
     @property
     def download(self) -> Download | None:
         if not self.__download:

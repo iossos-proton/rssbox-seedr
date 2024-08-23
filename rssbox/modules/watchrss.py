@@ -2,10 +2,10 @@ import logging
 from datetime import datetime
 from time import mktime
 from typing import Callable, List
-from pymongo.collection import Collection
 
-from feedparser import FeedParserDict, parse
 import pytz
+from feedparser import FeedParserDict, parse
+from pymongo.collection import Collection
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +55,7 @@ class WatchRSS:
             self.last_saved_on = new_last_saved_on
         else:
             result = self.db.find_one({"_id": self.id})
-            self.last_saved_on = (
-                result["last_saved_on"]
-                if result
-                else datetime.now()
-            )
+            self.last_saved_on = result["last_saved_on"] if result else datetime.now()
 
     def check(self):
         """

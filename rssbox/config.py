@@ -1,8 +1,10 @@
-from dotenv import load_dotenv
 import os
 from sys import argv
 
+from dotenv import load_dotenv
+
 load_dotenv()
+
 
 class Config:
     RSS_URL = os.environ["RSS_URL"]
@@ -18,5 +20,9 @@ class Config:
     DOWNLOAD_PATH = os.path.abspath(DOWNLOAD_PATH)
 
     LOG_FILE = os.environ.get("LOG_FILE", "rssbox.log")
-    DEBUG = "--debug" in argv or "--verbose" in argv or os.environ.get("LOG_LEVEL", "INFO") == "DEBUG"
+    DEBUG = (
+        "--debug" in argv
+        or "--verbose" in argv
+        or os.environ.get("LOG_LEVEL", "INFO") == "DEBUG"
+    )
     LOG_LEVEL = "DEBUG" if DEBUG else "INFO"

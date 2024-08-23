@@ -1,11 +1,14 @@
-from pymongo.collection import Collection
-from feedparser import FeedParserDict
-from ..enum import DownloadStatus
-from bson.objectid import ObjectId
-from pymongo.errors import DuplicateKeyError
 import logging
 
+from bson.objectid import ObjectId
+from feedparser import FeedParserDict
+from pymongo.collection import Collection
+from pymongo.errors import DuplicateKeyError
+
+from ..enum import DownloadStatus
+
 logger = logging.getLogger(__name__)
+
 
 class Download:
     url: str
@@ -22,7 +25,7 @@ class Download:
         self.name = dict["name"]
         self.id = dict["_id"]
         self.status = DownloadStatus(dict["status"])
-        
+
         self.download_name = dict.get("download_name")
         self.locked_by = dict.get("locked_by")
         self.retries = dict.get("retries", 0)
@@ -35,7 +38,7 @@ class Download:
             "status": self.status.value,
             "download_name": self.download_name,
             "locked_by": self.locked_by,
-            "retries": self.retries
+            "retries": self.retries,
         }
 
     def create(self):
@@ -48,7 +51,7 @@ class Download:
             self.url = result["url"]
             self.name = result["name"]
             self.status = DownloadStatus(result["status"])
-            
+
             self.download_name = result.get("download_name")
             self.locked_by = result.get("locked_by")
             self.retries = result.get("retries", 0)
@@ -73,10 +76,11 @@ class Download:
             self.retries += 1
 
         if self.retries >= 5:
+            logger.warning(f"Retry limit reached for {self.name}")
             self.delete()
         else:
             self.mark_as_pending()
-    
+
     def unlock(self):
         self.locked_by = None
         self.save()
