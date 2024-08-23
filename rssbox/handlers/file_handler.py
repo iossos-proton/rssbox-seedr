@@ -19,23 +19,31 @@ class FileHandler:
         self.deta = deta
         self.files = files
 
-    def upload(self, seedr: Seedr, seedr_object: SeedrFile | SeedrFolder):
+    def upload(self, seedr: Seedr, seedr_object: SeedrFile | SeedrFolder) -> int:
         if isinstance(seedr_object, SeedrFile):
-            self.process_file(seedr_object)
+            return self.process_file(seedr_object)
         elif isinstance(seedr_object, SeedrFolder):
-            self.process_folder(seedr_object)
+            return self.process_folder(seedr_object)
 
     def process_folder(self, folder: SeedrFolder):
+        files_uploaded = 0
+
         folder_list = folder.list()
         for file in folder_list.files:
-            self.process_file(file)
+            count = self.process_file(file)
+            files_uploaded += count
         for f in folder_list.folders:
-            self.process_folder(f)
+            count = self.process_folder(f)
+            files_uploaded += count
+
+        return files_uploaded
 
     def process_file(self, file: SeedrFile):
         if self.check_extension(file.name):
             self.download_file(file)
             self.upload_file(file)
+            return 1
+        return 0
 
     def check_extension(self, name: str):
         _, ext = os.path.splitext(name)

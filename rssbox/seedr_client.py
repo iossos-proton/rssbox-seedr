@@ -1,5 +1,7 @@
+from datetime import datetime, timedelta
 import logging
 from ssl import SSLEOFError
+from time import sleep
 from typing import List
 
 import nanoid
@@ -7,6 +9,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from deta import Deta, _Base
 from pymongo import ReturnDocument
 from pymongo.collection import Collection
+import pytz
 from requests.exceptions import ConnectionError
 
 from rssbox.enum import DownloadStatus, SeedrStatus
@@ -98,8 +101,8 @@ class SeedrClient:
 
         return Download(self.downloads, raw_download)
 
-    def get_downloads_to_check(self, limit: int) -> List[Seedr]:
-        raw_accounts = self.accounts.find(
+    def get_download_to_check(self) -> Seedr | None:
+        locked_account = self.accounts.find_one_and_update(
             {
                 "status": SeedrStatus.DOWNLOADING.value,
                 "$or": [
@@ -107,43 +110,36 @@ class SeedrClient:
                     {"locked_by": None},  # Explicitly not locked
                     {"locked_by": ""},  # Explicitly not locked
                 ],
+            },  # Ensure it's still unlocked
+            {
+                "$set": {
+                    "status": SeedrStatus.LOCKED.value,
+                    "locked_by": self.id,
+                    "last_checked_at": datetime.now(tz=pytz.utc),
+                }
             },
-            sort=[("priority", -1)],
-        ).limit(limit)
+            sort=[("last_checked_at", 1)],
+            return_document=ReturnDocument.AFTER,
+        )
 
-        locked_accounts = []
-
-        for account in raw_accounts:
-            locked_account = self.accounts.find_one_and_update(
-                {
-                    "_id": account["_id"],
-                    "$or": [
-                        {"locked_by": {"$exists": False}},  # Not locked by any instance
-                        {"locked_by": None},  # Explicitly not locked
-                        {"locked_by": ""},  # Explicitly not locked
-                    ],
-                },  # Ensure it's still unlocked
-                {
-                    "$set": {
-                        "status": SeedrStatus.LOCKED.value,
-                        "locked_by": self.id,
-                    }
-                },
-                return_document=ReturnDocument.AFTER,
-            )
-            if locked_account:
-                locked_accounts.append(locked_account)
-
-        return [self.get_seedr(account) for account in locked_accounts]
+        if locked_account:
+            return self.get_seedr(locked_account)
+        else:
+            return None
 
     def check_downloads(self):
-        seedrs = self.get_downloads_to_check(3)
-        if not seedrs:
-            return
+        limit = 3
+        timeout_in_seconds = 8 * 60  # 10 minutes
+        now = datetime.now(tz=pytz.utc)
 
-        logger.info(f"Checking {len(seedrs)} downloads")
+        while True:
+            if limit <= 0 or datetime.now(tz=pytz.utc) - now > timedelta(seconds=timeout_in_seconds):
+                break
 
-        for seedr in seedrs:
+            seedr = self.get_download_to_check()
+            if not seedr:
+                break
+
             download = seedr.download
             if not download:
                 logger.info(
@@ -165,18 +161,23 @@ class SeedrClient:
                 logger.info(f"Downloaded {download.name} by {seedr.id}")
                 try:
                     seedr.mark_as_uploading(self.id)
-                    self.file_handler.upload(seedr, downloaded_file)
-                    seedr.mark_as_completed()
+                    files_uploaded = self.file_handler.upload(seedr, downloaded_file)
+                    if files_uploaded:
+                        seedr.mark_as_completed()
+                        limit -= 1
+                    else:
+                        logger.info(f"No files uploaded for {download.name} by {seedr.id}")
+                        seedr.update_status(SeedrStatus.DOWNLOADING)
                 except ConnectionError as error:
+                    logger.error(
+                        f"Failed to upload {download.name} to {seedr.id}: {error}"
+                    )
                     seedr.mark_as_failed()
-                    logger.error(
-                        f"Failed to upload {download.name} to {seedr.id}: {error}"
-                    )
                 except SSLEOFError as error:
-                    seedr.mark_as_failed(soft=True)
                     logger.error(
                         f"Failed to upload {download.name} to {seedr.id}: {error}"
                     )
+                    seedr.mark_as_failed(soft=True)
             else:
                 if seedr.download_timeout():
                     logger.info(f"Download timed out for {download.name} by {seedr.id}")
@@ -189,6 +190,7 @@ class SeedrClient:
                             )
                             seedr.update_status(SeedrStatus.DOWNLOADING)
                             is_downloading = True
+                            sleep(1)
                             break
 
                     if not is_downloading:

@@ -22,6 +22,7 @@ class Seedr(Seedrcc):
     added_at: datetime | None
     download_id: str | None
     locked_by: str | None
+    last_checked_at: datetime | None
 
     def __init__(self, client: Collection, account: dict):
         self.client = client
@@ -32,6 +33,7 @@ class Seedr(Seedrcc):
         self.download_id = account.get("download_id", None)
         self.locked_by = account.get("locked_by", None)
         self.priority = account.get("priority", 0)
+        self.last_checked_at = account.get("last_checked_at", None)
         self.__download = None
 
         if not self.token:
@@ -101,6 +103,7 @@ class Seedr(Seedrcc):
                     "download_id": self.download_id,
                     "locked_by": self.locked_by,
                     "priority": self.priority,
+                    "last_checked_at": self.last_checked_at,
                 }
             },
         )
@@ -147,6 +150,10 @@ class Seedr(Seedrcc):
             with session.start_transaction():
                 self.mark_as_idle()
                 self.download.delete()
+    
+    def checked(self):
+        self.last_checked_at = datetime.now(tz=pytz.utc)
+        self.save()
 
     def reset(self):
         with mongo_client.start_session() as session:
