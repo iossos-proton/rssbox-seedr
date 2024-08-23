@@ -56,7 +56,8 @@ class SeedrClient:
 
     def start(self):
         with self.heartbeat:
-            self.begin_download()
+            self.begin_download()  # First download
+            self.scheduler.add_job(self.begin_download, "interval", seconds=30, id="begin_download")
             self.check_downloads()
             self.begin_download()
 

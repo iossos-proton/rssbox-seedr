@@ -36,7 +36,7 @@ watchrss = WatchRSS(
     check_confirmation=True,
 )
 watchrss.check()
-scheduler.add_job(watchrss.check, "interval", minutes=1)
+scheduler.add_job(watchrss.check, "interval", minutes=1, id="watchrss_check")
 
 seedr_client = SeedrClient(accounts, downloads, workers, scheduler, deta, files)
 seedr_client.start()
