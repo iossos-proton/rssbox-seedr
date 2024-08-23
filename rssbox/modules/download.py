@@ -77,7 +77,7 @@ class Download:
 
         if self.retries >= 5:
             logger.warning(f"Retry limit reached for {self.name}")
-            self.status = DownloadStatus.FAILED
+            self.status = DownloadStatus.ERROR
             self.save()
         else:
             self.mark_as_pending()
