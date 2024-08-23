@@ -284,7 +284,7 @@ class SeedrClient(Heartbeat):
 
         for seedr in seedrs:
             download = seedr.download
-            if not download:
+            if not download or not download.download_name:
                 logger.info(
                     f"Seedr downloaded but no download found for {seedr.download_id} ({seedr.id})"
                 )
@@ -327,11 +327,11 @@ class SeedrClient(Heartbeat):
         self, download: Download, seedr_list: SeedrList
     ) -> SeedrFile | SeedrFolder | None:
         for folder in seedr_list.folders:
-            if folder.name == download.name:
+            if folder.name == download.download_name:
                 return folder
 
         for file in seedr_list.files:
-            if file.name == download.name:
+            if file.name == download.download_name:
                 return file
 
         return None

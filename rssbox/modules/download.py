@@ -48,7 +48,10 @@ class Download:
             self.url = result["url"]
             self.name = result["name"]
             self.status = DownloadStatus(result["status"])
+            
             self.download_name = result.get("download_name")
+            self.locked_by = result.get("locked_by")
+            self.retries = result.get("retries", 0)
 
     def save(self):
         self.client.update_one({"_id": self.id}, {"$set": self.dict}, upsert=True)
