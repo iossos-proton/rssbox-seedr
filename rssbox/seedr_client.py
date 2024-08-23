@@ -129,7 +129,7 @@ class SeedrClient:
 
     def check_downloads(self):
         limit = 3
-        timeout_in_seconds = 8 * 60  # 10 minutes
+        timeout_in_seconds = 8 * 60  # 8 minutes
         now = datetime.now(tz=pytz.utc)
 
         while True:
@@ -161,13 +161,14 @@ class SeedrClient:
                 logger.info(f"Downloaded {download.name} by {seedr.id}")
                 try:
                     seedr.mark_as_uploading(self.id)
-                    files_uploaded = self.file_handler.upload(seedr, downloaded_file)
+                    files_uploaded = self.file_handler.upload(downloaded_file)
                     if files_uploaded:
                         seedr.mark_as_completed()
                         limit -= 1
                     else:
                         logger.info(f"No files uploaded for {download.name} by {seedr.id}")
                         seedr.update_status(SeedrStatus.DOWNLOADING)
+                        sleep(5)
                 except ConnectionError as error:
                     logger.error(
                         f"Failed to upload {download.name} to {seedr.id}: {error}"

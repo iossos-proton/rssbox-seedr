@@ -19,7 +19,7 @@ class FileHandler:
         self.deta = deta
         self.files = files
 
-    def upload(self, seedr: Seedr, seedr_object: SeedrFile | SeedrFolder) -> int:
+    def upload(self, seedr_object: SeedrFile | SeedrFolder) -> int:
         if isinstance(seedr_object, SeedrFile):
             return self.process_file(seedr_object)
         elif isinstance(seedr_object, SeedrFolder):
@@ -100,8 +100,15 @@ class FileHandler:
             f"Uploaded {file.name} ({humanize.naturalsize(file.size)}) to {drive_name}"
         )
 
-        delete_file(os.path.dirname(filepath))
+        self.remove_file(file)
         return result
 
     def get_filepath(self, file: SeedrFile) -> str:
-        return os.path.join(Config.DOWNLOAD_PATH, str(file.id), file.name)
+        return os.path.join(self.get_filedir(file), file.name)
+
+    def get_filedir(self, file: SeedrFile) -> str:
+        return os.path.join(Config.DOWNLOAD_PATH, str(file.id))
+    
+    def remove_file(self, file: SeedrFile):
+        filedir = self.get_filedir(file)
+        delete_file(filedir)
