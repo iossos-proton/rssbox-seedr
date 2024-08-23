@@ -1,8 +1,7 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 
-import pytz
 from pymongo.collection import Collection
 from seedrcc import Login
 from seedrcc import Seedr as Seedrcc
@@ -118,7 +117,7 @@ class Seedr(Seedrcc):
         self, download: Download, response: "SeedrAddDownloadResponse"
     ):
         self.download_id = download.id
-        self.added_at = datetime.now(tz=pytz.utc)
+        self.added_at = datetime.now(tz=timezone.utc)
         self.status = SeedrStatus.DOWNLOADING
         self.locked_by = None
 
@@ -150,9 +149,9 @@ class Seedr(Seedrcc):
             with session.start_transaction():
                 self.mark_as_idle()
                 self.download.delete()
-    
+
     def checked(self):
-        self.last_checked_at = datetime.now(tz=pytz.utc)
+        self.last_checked_at = datetime.now(tz=timezone.utc)
         self.save()
 
     def reset(self):
@@ -163,7 +162,7 @@ class Seedr(Seedrcc):
 
     def download_timeout(self, timeout: int = 60 * 60) -> bool:
         if self.added_at and self.added_at + timedelta(seconds=timeout) < datetime.now(
-            tz=pytz.utc
+            tz=timezone.utc
         ):
             self.mark_as_idle()
             return True

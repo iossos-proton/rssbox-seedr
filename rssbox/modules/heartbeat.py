@@ -1,7 +1,6 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
-import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from pymongo.collection import Collection
 
@@ -34,7 +33,7 @@ class Heartbeat:
         logger.debug(f"Updating heartbeat for {self.id}")
         self.client.update_one(
             {"_id": self.id},
-            {"$set": {"last_heartbeat": datetime.now(tz=pytz.utc)}},
+            {"$set": {"last_heartbeat": datetime.now(tz=timezone.utc)}},
             upsert=True,
         )
 

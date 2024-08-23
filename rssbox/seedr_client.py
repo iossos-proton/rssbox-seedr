@@ -1,15 +1,13 @@
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta, timezone
 from ssl import SSLEOFError
 from time import sleep
-from typing import List
 
 import nanoid
 from apscheduler.schedulers.background import BackgroundScheduler
 from deta import Deta, _Base
 from pymongo import ReturnDocument
 from pymongo.collection import Collection
-import pytz
 from requests.exceptions import ConnectionError
 
 from rssbox.enum import DownloadStatus, SeedrStatus
@@ -115,7 +113,7 @@ class SeedrClient:
                 "$set": {
                     "status": SeedrStatus.LOCKED.value,
                     "locked_by": self.id,
-                    "last_checked_at": datetime.now(tz=pytz.utc),
+                    "last_checked_at": datetime.now(tz=timezone.utc),
                 }
             },
             sort=[("last_checked_at", 1)],
@@ -130,10 +128,12 @@ class SeedrClient:
     def check_downloads(self):
         limit = 3
         timeout_in_seconds = 8 * 60  # 8 minutes
-        now = datetime.now(tz=pytz.utc)
+        now = datetime.now(tz=timezone.utc)
 
         while True:
-            if limit <= 0 or datetime.now(tz=pytz.utc) - now > timedelta(seconds=timeout_in_seconds):
+            if limit <= 0 or datetime.now(tz=timezone.utc) - now > timedelta(
+                seconds=timeout_in_seconds
+            ):
                 break
 
             seedr = self.get_download_to_check()
@@ -166,7 +166,9 @@ class SeedrClient:
                         seedr.mark_as_completed()
                         limit -= 1
                     else:
-                        logger.info(f"No files uploaded for {download.name} by {seedr.id}")
+                        logger.info(
+                            f"No files uploaded for {download.name} by {seedr.id}"
+                        )
                         seedr.update_status(SeedrStatus.DOWNLOADING)
                         sleep(5)
                 except ConnectionError as error:

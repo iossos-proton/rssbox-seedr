@@ -1,14 +1,13 @@
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import humanize
-import pytz
 import requests
 from deta import Deta, _Base
 
 from rssbox.config import Config
-from rssbox.modules.seedr import Seedr, SeedrFile, SeedrFolder
+from rssbox.modules.seedr import SeedrFile, SeedrFolder
 from rssbox.utils import delete_file, md5hash
 
 logger = logging.getLogger(__name__)
@@ -92,7 +91,7 @@ class FileHandler:
                 "name": file.name,
                 "size": file.size,
                 "hash": drive_name,
-                "created_at": datetime.now(tz=pytz.utc).isoformat(),
+                "created_at": datetime.now(tz=timezone.utc).isoformat(),
                 "downloads_count": 0,
             }
         )
@@ -108,7 +107,7 @@ class FileHandler:
 
     def get_filedir(self, file: SeedrFile) -> str:
         return os.path.join(Config.DOWNLOAD_PATH, str(file.id))
-    
+
     def remove_file(self, file: SeedrFile):
         filedir = self.get_filedir(file)
         delete_file(filedir)

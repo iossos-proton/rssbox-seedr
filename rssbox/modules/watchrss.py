@@ -1,9 +1,8 @@
 import logging
-from datetime import datetime
-from time import mktime
+from datetime import datetime, timezone
+from time import mktime, struct_time
 from typing import Callable, List
 
-import pytz
 from feedparser import FeedParserDict, parse
 from pymongo.collection import Collection
 
@@ -36,7 +35,7 @@ class WatchRSS:
         if last_saved_on:
             self.update_last_saved_on(last_saved_on)
         elif not self.db.find_one({"_id": self.id}):
-            self.update_last_saved_on(datetime.now(pytz.utc))
+            self.update_last_saved_on(datetime.now(tz=timezone.utc))
         else:
             self.update_last_saved_on()
 
@@ -57,6 +56,12 @@ class WatchRSS:
             result = self.db.find_one({"_id": self.id})
             self.last_saved_on = result["last_saved_on"] if result else datetime.now()
 
+    def struct_to_datetime(self, struct: struct_time) -> datetime:
+        """
+        Converts a struct_time to a datetime
+        """
+        return datetime.fromtimestamp(mktime(struct)).replace(tzinfo=timezone.utc)
+
     def check(self):
         """
         Checks for new entries in the RSS feed
@@ -68,14 +73,11 @@ class WatchRSS:
         entries = [
             entry
             for entry in parsed.entries
-            if datetime.fromtimestamp(mktime(entry.published_parsed), tz=pytz.utc)
-            > self.last_saved_on
+            if self.struct_to_datetime(entry.published_parsed) > self.last_saved_on
         ]
 
         logger.debug("There are {} new entries".format(len(entries)))
-        last_saved_on = datetime.fromtimestamp(
-            mktime(parsed.entries[0].published_parsed)
-        )
+        last_saved_on = self.struct_to_datetime(parsed.entries[0].published_parsed)
 
         if entries:
             try:

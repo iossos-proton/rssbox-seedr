@@ -1,7 +1,6 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
-import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from pymongo.collection import Collection
 
@@ -32,7 +31,7 @@ class WorkerHandler:
         logger.info("Unlocking idle Seedrs and removing stale workers")
 
         timeout_period = timedelta(seconds=40)
-        current_time = datetime.now(tz=pytz.utc)
+        current_time = datetime.now(tz=timezone.utc)
         timeout_threshold = current_time - timeout_period
 
         # Find and delete stale workers, then capture their IDs
