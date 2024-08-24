@@ -185,7 +185,7 @@ class Seedr(Seedrcc):
     @property
     def time_taken(self):
         if self.added_at:
-            return str(datetime.now(tz=timezone.utc) - self.added_at)
+            return str(datetime.now(tz=timezone.utc) - self.added_at).split('.', 2)[0]
         
         self.added_at = datetime.now(tz=timezone.utc)
         self.save()
