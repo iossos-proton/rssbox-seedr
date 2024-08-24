@@ -189,9 +189,10 @@ class SeedrClient:
                 else:
                     is_downloading = False
                     for torrent in result.torrents:
-                        if torrent.name == download.name:
+                        if torrent.name == download.download_name:
+                            download_added_since = datetime.now(tz=timezone.utc) - download.added_at
                             logger.info(
-                                f"Download in progress for {download.name} by {seedr.id} ({torrent.progress:.2f}%)"
+                                f"Download in progress for {download.name} by {seedr.id} ({torrent.progress:.2f}%) ({download_added_since})"
                             )
                             seedr.update_status(SeedrStatus.DOWNLOADING)
                             is_downloading = True

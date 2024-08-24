@@ -5,6 +5,7 @@ class DownloadStatus(Enum):
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
     COMPLETED = "COMPLETED"
+    TIMEOUT = "TIMEOUT"
     ERROR = "ERROR"
 
 

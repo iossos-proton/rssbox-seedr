@@ -7,7 +7,7 @@ from seedrcc import Login
 from seedrcc import Seedr as Seedrcc
 
 from rssbox import downloads, mongo_client
-from rssbox.enum import SeedrStatus
+from rssbox.enum import DownloadStatus, SeedrStatus
 from rssbox.modules.download import Download
 
 logger = logging.getLogger(__name__)
@@ -160,11 +160,14 @@ class Seedr(Seedrcc):
                 self.mark_as_idle()
                 self.download.mark_as_pending()
 
-    def download_timeout(self, timeout: int = 60 * 60) -> bool:
+    def download_timeout(self, timeout: int = 60 * 60 * 2.5) -> bool:
         if self.added_at and self.added_at + timedelta(seconds=timeout) < datetime.now(
             tz=timezone.utc
         ):
-            self.mark_as_idle()
+            with mongo_client.start_session() as session:
+                with session.start_transaction():
+                    self.mark_as_idle()
+                    self.download.update_status(DownloadStatus.TIMEOUT)
             return True
 
         return False
