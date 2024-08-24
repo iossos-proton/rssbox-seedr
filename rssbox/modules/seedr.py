@@ -164,10 +164,7 @@ class Seedr(Seedrcc):
         if self.added_at and self.added_at + timedelta(seconds=timeout) < datetime.now(
             tz=timezone.utc
         ):
-            with mongo_client.start_session() as session:
-                with session.start_transaction():
-                    self.mark_as_idle()
-                    self.download.update_status(DownloadStatus.TIMEOUT)
+            self.reset()
             return True
 
         return False
@@ -184,6 +181,15 @@ class Seedr(Seedrcc):
         if not self.__download:
             self.__download = self.get_download()
         return self.__download
+    
+    @property
+    def time_taken(self):
+        if self.added_at:
+            return str(datetime.now(tz=timezone.utc) - self.added_at)
+        
+        self.added_at = datetime.now(tz=timezone.utc)
+        self.save()
+        return self.time_taken
 
 
 class SeedrAddDownloadResponse:
