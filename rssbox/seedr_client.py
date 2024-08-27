@@ -173,16 +173,16 @@ class SeedrClient:
                         )
                         seedr.update_status(SeedrStatus.DOWNLOADING)
                         sleep(5)
-                except ConnectionError as error:
-                    logger.error(
-                        f"Failed to upload {download.name} to {seedr.id}: {error}"
-                    )
-                    seedr.mark_as_failed()
                 except SSLEOFError as error:
                     logger.error(
                         f"Failed to upload {download.name} to {seedr.id}: {error}"
                     )
                     seedr.mark_as_failed(soft=True)
+                except Exception as error:
+                    logger.error(
+                        f"Failed to upload {download.name} to {seedr.id}: {error}"
+                    )
+                    seedr.mark_as_failed()
             else:
                 if seedr.download_timeout():
                     logger.info(f"Download timed out for {download.name} by {seedr.id}")

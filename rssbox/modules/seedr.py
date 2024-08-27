@@ -199,7 +199,7 @@ class SeedrAddDownloadResponse:
     success: bool
 
     def __init__(self, dict: dict):
-        self.code = dict["code"]
+        self.code = dict.get("code", 0)
         self.error = dict.get("error") or dict.get("result")
         self.name = dict.get("title")
         self.success = self.code == 200 and dict["result"] == True
