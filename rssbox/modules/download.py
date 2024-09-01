@@ -88,7 +88,7 @@ class Download:
 
     def delete(self):
         self.client.delete_one({"_id": self.id})
-    
+
     def update_status(self, status: DownloadStatus):
         self.status = status
         self.save()

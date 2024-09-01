@@ -54,15 +54,15 @@ class WatchRSS:
             self.last_saved_on = new_last_saved_on
         else:
             result = self.db.find_one({"_id": self.id})
-            self.last_saved_on = result["last_saved_on"] if result else datetime.now(timezone.utc)
-
+            self.last_saved_on = (
+                result["last_saved_on"] if result else datetime.now(timezone.utc)
+            )
 
     def struct_to_datetime(self, struct: struct_time) -> datetime:
         """
         Converts a struct_time to a datetime
         """
         return datetime.fromtimestamp(mktime(struct)).replace(tzinfo=timezone.utc)
-
 
     def check(self):
         """

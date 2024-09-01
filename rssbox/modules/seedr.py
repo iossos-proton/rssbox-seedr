@@ -7,7 +7,7 @@ from seedrcc import Login
 from seedrcc import Seedr as Seedrcc
 
 from rssbox import downloads, mongo_client
-from rssbox.enum import DownloadStatus, SeedrStatus
+from rssbox.enum import SeedrStatus
 from rssbox.modules.download import Download
 
 logger = logging.getLogger(__name__)
@@ -183,12 +183,12 @@ class Seedr(Seedrcc):
         if not self.__download:
             self.__download = self.get_download()
         return self.__download
-    
+
     @property
     def time_taken(self):
         if self.added_at:
-            return str(datetime.now(tz=timezone.utc) - self.added_at).split('.', 2)[0]
-        
+            return str(datetime.now(tz=timezone.utc) - self.added_at).split(".", 2)[0]
+
         self.added_at = datetime.now(tz=timezone.utc)
         self.save()
         return self.time_taken

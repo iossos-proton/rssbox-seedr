@@ -8,7 +8,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from deta import Deta, _Base
 from pymongo import ReturnDocument
 from pymongo.collection import Collection
-from requests.exceptions import ConnectionError
 
 from rssbox.enum import DownloadStatus, SeedrStatus
 from rssbox.handlers.file_handler import FileHandler
@@ -57,7 +56,9 @@ class SeedrClient:
     def start(self):
         with self.heartbeat:
             self.begin_download()  # First download
-            self.scheduler.add_job(self.begin_download, "interval", seconds=30, id="begin_download")
+            self.scheduler.add_job(
+                self.begin_download, "interval", seconds=30, id="begin_download"
+            )
             self.check_downloads()
             self.begin_download()
 
