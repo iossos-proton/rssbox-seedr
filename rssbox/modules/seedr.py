@@ -261,6 +261,10 @@ class SeedrList:
     torrents: List[SeedrTorrent]
 
     def __init__(self, client: Seedr, list: dict):
-        self.folders = [SeedrFolder(client, folder) for folder in list["folders"]]
-        self.files = [SeedrFile(client, file) for file in list["files"]]
-        self.torrents = [SeedrTorrent(torrent) for torrent in list["torrents"]]
+        try:
+            self.folders = [SeedrFolder(client, folder) for folder in list["folders"]]
+            self.files = [SeedrFile(client, file) for file in list["files"]]
+            self.torrents = [SeedrTorrent(torrent) for torrent in list["torrents"]]
+        except KeyError as error:
+            logger.error(list)
+            raise error
