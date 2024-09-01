@@ -28,7 +28,7 @@ class WorkerHandler:
         )
 
     def clean_stale_seedrs_and_workers(self):
-        logger.info("Unlocking idle Seedrs and removing stale workers")
+        logger.info("Unlocking idle or stale workers, seedrs, and downloads")
 
         timeout_period = timedelta(seconds=40)
         current_time = datetime.now(tz=timezone.utc)
@@ -45,7 +45,7 @@ class WorkerHandler:
             result = self.workers.delete_many({"_id": {"$in": stale_worker_ids}})
             logger.info(f"Removed {result.deleted_count} stale workers")
         else:
-            logger.info("No stale workers to remove")
+            logger.debug("No stale workers to remove")
 
         # Process the accounts table
         self.process_stale_seedrs(stale_worker_ids, timeout_threshold)
@@ -122,7 +122,7 @@ class WorkerHandler:
                 f"Updated {len(orphaned_or_idle_accounts)} orphaned or idle Seedr accounts"
             )
         else:
-            logger.info("No orphaned or idle Seedr accounts to update")
+            logger.debug("No orphaned or idle Seedr accounts to update")
 
     def process_stale_downloads(self, stale_worker_ids, timeout_threshold):
         logger.debug("Checking for stale or orphaned downloads")
@@ -186,4 +186,41 @@ class WorkerHandler:
                 f"Updated {len(orphaned_or_idle_download_ids)} orphaned or idle downloads"
             )
         else:
-            logger.info("No orphaned or idle downloads to update")
+            logger.debug("No orphaned or idle downloads to update")
+
+        # Find downloads in PROCESSING that don't have a corresponding entry in the accounts table
+        processing_downloads_without_account = self.downloads.aggregate(
+            [
+                {"$match": {"status": DownloadStatus.PROCESSING.value}},
+                {
+                    "$lookup": {
+                        "from": "accounts",
+                        "localField": "_id",
+                        "foreignField": "download_id",
+                        "as": "account",
+                    }
+                },
+                {"$match": {"account": {"$size": 0}}},  # No corresponding account found
+                {"$project": {"_id": 1}},
+            ]
+        )
+
+        processing_download_ids_without_account = [
+            download["_id"] for download in processing_downloads_without_account
+        ]
+
+        if processing_download_ids_without_account:
+            self.downloads.update_many(
+                {"_id": {"$in": processing_download_ids_without_account}},
+                {
+                    "$set": {
+                        "status": DownloadStatus.PENDING.value,  # Revert to pending for reprocessing
+                        "locked_by": None,
+                    }
+                },
+            )
+            logger.info(
+                f"Updated {len(processing_download_ids_without_account)} processing downloads without account references to pending"
+            )
+        else:
+            logger.debug("No processing downloads without account references found")
