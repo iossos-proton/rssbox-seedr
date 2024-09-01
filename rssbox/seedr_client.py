@@ -218,7 +218,15 @@ class SeedrClient:
         return None
 
     def begin_download(self):
+        timeout_in_seconds = 5 * 60  # 5 minutes
+        now = datetime.now(tz=timezone.utc)
+
         while True:
+            if datetime.now(tz=timezone.utc) - now > timedelta(
+                seconds=timeout_in_seconds
+            ):
+                break
+
             download = self.get_pending_download()
             if not download:
                 break

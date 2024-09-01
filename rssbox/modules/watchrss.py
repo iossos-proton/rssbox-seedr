@@ -21,11 +21,11 @@ class WatchRSS:
     ):
         """
         :param url: RSS feed url
+        :param db: MongoDB database collection to save the last saved on timestamp (pymongo.collection.Collection)
         :param callback: callback function to call when new entries are found (entries are passed as a list)
         :param id: id to use to save the last saved on timestamp (defaults to url)
         :param last_saved_on: last saved on timestamp (defaults to now if not provided and not saved in db)
         :param check_confirmation: whether to check for confirmation from the callback function (defaults to False)
-        :param database_path: path to the database file (defaults to watchrss.data.json)
         """
         self.url = url
         self.id = id or url
@@ -54,13 +54,15 @@ class WatchRSS:
             self.last_saved_on = new_last_saved_on
         else:
             result = self.db.find_one({"_id": self.id})
-            self.last_saved_on = result["last_saved_on"] if result else datetime.now()
+            self.last_saved_on = result["last_saved_on"] if result else datetime.now(timezone.utc)
+
 
     def struct_to_datetime(self, struct: struct_time) -> datetime:
         """
         Converts a struct_time to a datetime
         """
         return datetime.fromtimestamp(mktime(struct)).replace(tzinfo=timezone.utc)
+
 
     def check(self):
         """

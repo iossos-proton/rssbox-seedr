@@ -78,6 +78,8 @@ class Seedr(Seedrcc):
             self.deleteFolder(folder.id)
         for file in seedr_list.files:
             self.deleteFile(file.id)
+        for torrent in seedr_list.torrents:
+            self.deleteTorrent(torrent.id)
 
     def add_download(self, download: Download):
         self.purge()
